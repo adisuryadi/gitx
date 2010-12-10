@@ -21,12 +21,39 @@
 #import "GitXScriptingConstants.h"
 #import "PBHistorySearchController.h"
 
+#import "PBGitStash.h"
+#import "PBGitSubmodule.h"
+
 NSString* PBGitRepositoryErrorDomain = @"GitXErrorDomain";
 
-@implementation PBGitRepository
+@interface PBGitRepository()
+@end
 
+
+
+@implementation PBGitRepository
+@synthesize stashController;
+@synthesize submoduleController;
+@synthesize resetController;
 @synthesize revisionList, branches, currentBranch, refs, hasChanged, config;
 @synthesize currentBranchFilter;
+
+- (NSMenu *) menu {
+	NSMenu *menu = [[NSMenu alloc] init];
+	NSMutableArray *items = [[NSMutableArray alloc] init];
+	[items addObjectsFromArray:[self.submoduleController menuItems]];
+	[items addObject:[NSMenuItem separatorItem]];
+	[items addObjectsFromArray:[self.stashController menu]];
+	[items addObject:[NSMenuItem separatorItem]];
+	[items addObjectsFromArray:[self.resetController menuItems]];
+	
+	for (NSMenuItem *item in items) {
+		[menu addItem:item];
+	}
+	
+	[menu setAutoenablesItems:YES];
+	return menu;
+}
 
 - (BOOL)readFromData:(NSData *)data ofType:(NSString *)typeName error:(NSError **)outError
 {
@@ -135,6 +162,10 @@ NSString* PBGitRepositoryErrorDomain = @"GitXErrorDomain";
 	[self reloadRefs];
 	currentBranchFilter = [PBGitDefaults branchFilter];
 	revisionList = [[PBGitHistoryList alloc] initWithRepository:self];
+	
+	resetController = [[PBGitResetController alloc] initWithRepository:self];
+	stashController = [[PBStashController alloc] initWithRepository:self];
+	submoduleController = [[PBSubmoduleController alloc] initWithRepository:self];
 }
 
 - (void)close
@@ -280,6 +311,9 @@ NSString* PBGitRepositoryErrorDomain = @"GitXErrorDomain";
 
 	[self willChangeValueForKey:@"refs"];
 	[self didChangeValueForKey:@"refs"];
+	
+	[self.stashController reload];
+	[self.submoduleController reload];
 
 	[[[self windowController] window] setTitle:[self displayName]];
 }
@@ -1061,7 +1095,8 @@ NSString* PBGitRepositoryErrorDomain = @"GitXErrorDomain";
 
 - (NSString*) outputInWorkdirForArguments:(NSArray*) arguments
 {
-	return [PBEasyPipe outputForCommand:[PBGitBinary path] withArgs:arguments inDir: [self workingDirectory]];
+	NSString *output = [PBEasyPipe outputForCommand:[PBGitBinary path] withArgs:arguments inDir: [self workingDirectory]];
+	return [output length] > 0 ? output : nil;
 }
 
 - (NSString*) outputInWorkdirForArguments:(NSArray *)arguments retValue:(int *)ret
